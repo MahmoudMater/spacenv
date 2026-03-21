@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  avatarUrl    String?
+  passwordHash String?
+  provider     String?
+  providerId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedSpaces       Space[]         @relation("SpaceOwner")
+  spaceMemberships  SpaceMember[]
+  invitesSent       SpaceMember[]   @relation("InvitedBy")
+  notifications     Notification[]
+  createdProjects   Project[]
+  refreshTokens     RefreshToken[]
+
+  @@unique([provider, providerId])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Space {
+  id              String                @id @default(cuid())
+  name            String
+  description     String?
+  encDek          String
+  ownerId         String
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  owner           User                  @relation("SpaceOwner", fields: [ownerId], references: [id])
+  members         SpaceMember[]
+  projects        Project[]
+  visibilityRules SpaceVisibilityRule[]
+
+  @@index([ownerId])
+}
+
+model SpaceMember {
+  id          String    @id @default(cuid())
+  spaceId     String
+  userId      String
+  role        SpaceRole @default(VIEWER)
+  invitedById String?
+  createdAt   DateTime  @default(now())
+  space       Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy   User?     @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@unique([spaceId, userId])
+  @@index([userId])
+}
+
+model SpaceVisibilityRule {
+  id      String          @id @default(cuid())
+  spaceId String
+  envType EnvironmentType
+  access  AccessLevel     @default(ALL)
+  space   Space           @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, envType])
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  spaceId       String
+  name          String
+  description   String?
+  createdById   String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  space         Space         @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation(fields: [createdById], references: [id])
+  environments  Environment[]
+}
+
+model Environment {
+  id          String          @id @default(cuid())
+  projectId   String
+  name        String
+  type        EnvironmentType
+  description String?
+  githubRepo  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  secrets     Secret[]
+
+  @@unique([projectId, name])
+}
+
+model Secret {
+  id             String      @id @default(cuid())
+  environmentId  String
+  key            String
+  encryptedValue String
+  iv             String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  environment    Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([environmentId, key])
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  spaceId       String
+  projectId     String?
+  environmentId String?
+  secretKey     String?
+  metadata      Json?
+  type          NotificationType
+  actorName     String
+  read          Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SpaceRole {
+  VIEWER
+  WRITER
+}
+
+enum EnvironmentType {
+  PRODUCTION
+  STAGING
+  DEVELOPMENT
+  QC
+  OTHER
+}
+
+enum AccessLevel {
+  OWNER_ONLY
+  WRITERS
+  ALL
+}
+
+enum NotificationType {
+  SPACE_INVITE
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_DELETED
+  ENVIRONMENT_CREATED
+  ENVIRONMENT_UPDATED
+  ENVIRONMENT_DELETED
+  SECRETS_IMPORTED
+  SECRET_ADDED
+  SECRET_UPDATED
+  SECRET_DELETED
+}
