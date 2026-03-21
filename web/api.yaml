@@ -1,0 +1,1778 @@
+openapi: 3.0.0
+paths:
+  /api/v1/health:
+    get:
+      operationId: AppController_health
+      parameters: []
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                example:
+                  status: ok
+                  timestamp: '2024-01-01T00:00:00.000Z'
+                  version: '1.0'
+      summary: Health check
+      tags:
+        - auth
+  /api/v1:
+    get:
+      description: Simple authenticated ping — confirms session cookie is accepted.
+      operationId: AppController_getHello
+      parameters: []
+      responses:
+        '200':
+          description: Greeting string
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Hello World!
+        '401':
+          description: Missing or invalid session
+      security:
+        - access_token: []
+      summary: Hello (smoke test)
+      tags:
+        - auth
+  /api/v1/auth/register:
+    post:
+      operationId: AuthController_register
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDto'
+      responses:
+        '201':
+          description: User created, tokens set in cookies
+        '409':
+          description: Email already in use
+      security:
+        - access_token: []
+      summary: Register with email and password
+      tags:
+        - auth
+  /api/v1/auth/login:
+    post:
+      operationId: AuthController_login
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '200':
+          description: Tokens set in httpOnly cookies
+        '401':
+          description: Invalid credentials
+      security:
+        - access_token: []
+      summary: Login with email and password
+      tags:
+        - auth
+  /api/v1/auth/refresh:
+    post:
+      operationId: AuthController_refresh
+      parameters: []
+      responses:
+        '200':
+          description: New tokens set in cookies
+        '401':
+          description: Invalid or expired refresh token
+      security:
+        - access_token: []
+      summary: Rotate access + refresh tokens using the refresh cookie
+      tags:
+        - auth
+  /api/v1/auth/logout:
+    post:
+      operationId: AuthController_logout
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - access_token: []
+      summary: Logout — revokes refresh token and clears cookies
+      tags:
+        - auth
+  /api/v1/auth/me:
+    get:
+      operationId: AuthController_getMe
+      parameters: []
+      responses:
+        '200':
+          description: Current user profile (id, email, name, avatarUrl, provider when set, createdAt)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionUserResponseDto'
+        '401':
+          description: Not authenticated
+      security:
+        - access_token: []
+      summary: Get the currently authenticated user
+      tags:
+        - auth
+  /api/v1/auth/google:
+    get:
+      operationId: AuthController_googleAuth
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - access_token: []
+      summary: Redirect to Google OAuth consent screen
+      tags:
+        - auth
+  /api/v1/auth/github:
+    get:
+      operationId: AuthController_githubAuth
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      security:
+        - access_token: []
+      summary: Redirect to GitHub OAuth consent screen
+      tags:
+        - auth
+  /api/v1/spaces:
+    get:
+      description: >-
+        Returns every space you own and every space you are a member of (where
+        you are not the owner), merged and sorted by `updatedAt` descending.
+        Each item includes `viewerMembership`: OWNER vs MEMBER for UI grouping.
+      operationId: SpacesController_findAll
+      parameters: []
+      responses:
+        '200':
+          description: List of spaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpaceResponseDto'
+        '401':
+          description: Unauthorized
+      security:
+        - access_token: []
+      summary: List spaces for the current user
+      tags:
+        - spaces
+    post:
+      description: >-
+        Creates a team space. You become owner; a DEK is generated and
+        encrypted; default visibility rules are applied.
+      operationId: SpacesController_create
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpaceDto'
+      responses:
+        '201':
+          description: Space created with members and visibility rules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaceDetailResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+      security:
+        - access_token: []
+      summary: Create a new space
+      tags:
+        - spaces
+  /api/v1/spaces/{id}:
+    get:
+      operationId: SpacesController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            example: clx1234abcd
+            type: string
+      responses:
+        '200':
+          description: Space with members and visibility rules (no encDek)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaceDetailResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not a member of this space
+        '404':
+          description: Space not found
+      security:
+        - access_token: []
+      summary: Get a space by ID
+      tags:
+        - spaces
+    patch:
+      operationId: SpacesController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpaceDto'
+      responses:
+        '200':
+          description: Updated space (no encDek)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  description:
+                    type: string
+                    nullable: true
+                  ownerId:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only the owner can update
+        '404':
+          description: Space not found
+      security:
+        - access_token: []
+      summary: Update a space (owner only)
+      tags:
+        - spaces
+    delete:
+      description: Cascades to members, projects, environments, and secrets.
+      operationId: SpacesController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Space deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only the owner can delete
+        '404':
+          description: Space not found
+      security:
+        - access_token: []
+      summary: Delete a space (owner only)
+      tags:
+        - spaces
+  /api/v1/spaces/{id}/visibility:
+    patch:
+      description: One rule per environment type; merged via upsert.
+      operationId: SpacesController_updateVisibility
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVisibilityDto'
+      responses:
+        '200':
+          description: Current visibility rules for the space
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpaceVisibilityRuleResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only the owner can change rules
+        '404':
+          description: Space not found
+      security:
+        - access_token: []
+      summary: Upsert visibility rules (owner only)
+      tags:
+        - spaces
+  /api/v1/spaces/{id}/invite:
+    post:
+      description: >-
+        Creates an in-app notification for the invitee with the token in
+        metadata. User must already exist. Membership is created when they POST
+        /invites/accept.
+      operationId: SpacesController_invite
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberDto'
+      responses:
+        '200':
+          description: Invite email queued/sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteEmailSentResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Only the owner can invite
+        '404':
+          description: No user with that email
+        '409':
+          description: User is already a member
+      security:
+        - access_token: []
+      summary: Invite a user by email
+      tags:
+        - spaces
+  /api/v1/spaces/{id}/members/{userId}:
+    patch:
+      description: >-
+        Owner only. Sets the member's space role to VIEWER or WRITER. Cannot
+        change the space owner's membership; cannot target users who are not
+        members.
+      operationId: SpacesController_updateMemberRole
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+        - name: userId
+          required: true
+          in: path
+          description: Target member user CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpaceMemberRoleDto'
+      responses:
+        '200':
+          description: Updated membership with nested user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                description: SpaceMember with user (same shape as SpaceDetailResponseDto members[])
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Owner only, or cannot change the space owner's role
+        '404':
+          description: Space or member not found
+      security:
+        - access_token: []
+      summary: Update a member's role (owner only)
+      tags:
+        - spaces
+    delete:
+      description: >-
+        Owner only. Cannot remove yourself or the space owner (transfer
+        ownership is not supported via this API).
+      operationId: SpacesController_removeMember
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+        - name: userId
+          required: true
+          in: path
+          description: Target user CUID to remove
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Member removed
+        '401':
+          description: Unauthorized
+        '403':
+          description: Owner only, or cannot remove self
+        '404':
+          description: Space or member not found
+      security:
+        - access_token: []
+      summary: Remove a member from the space (owner only)
+      tags:
+        - spaces
+  /api/v1/spaces/{spaceId}/projects:
+    get:
+      description: All projects in the space (requires space membership).
+      operationId: SpaceProjectsController_findAllInSpace
+      parameters:
+        - name: spaceId
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not a member of this space
+      security:
+        - access_token: []
+      summary: List projects in a space
+      tags:
+        - projects
+    post:
+      description: Requires space WRITER role or owner.
+      operationId: SpaceProjectsController_create
+      parameters:
+        - name: spaceId
+          required: true
+          in: path
+          description: Space CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectDto'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not a member of this space
+      security:
+        - access_token: []
+      summary: Create a project in a space
+      tags:
+        - projects
+  /api/v1/projects/{id}:
+    get:
+      operationId: ProjectsController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Project CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not a member of this space
+        '404':
+          description: Project not found
+      security:
+        - access_token: []
+      summary: Get a project by ID
+      tags:
+        - projects
+    patch:
+      operationId: ProjectsController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Project CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectDto'
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers or owner only
+        '404':
+          description: Project not found
+      security:
+        - access_token: []
+      summary: Update a project (space WRITER or owner)
+      tags:
+        - projects
+    delete:
+      description: Cascades to environments and secrets.
+      operationId: ProjectsController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Project CUID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers or owner only
+        '404':
+          description: Project not found
+      security:
+        - access_token: []
+      summary: Delete a project (space WRITER or owner)
+      tags:
+        - projects
+  /api/v1/projects/{projectId}/environments:
+    get:
+      description: >-
+        Returns only environments you are allowed to see per space visibility
+        rules.
+      operationId: ProjectEnvironmentsController_findAll
+      parameters:
+        - name: projectId
+          required: true
+          in: path
+          description: Project CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EnvironmentResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not a project member or blocked by visibility
+      security:
+        - access_token: []
+      summary: List environments in a project
+      tags:
+        - environments
+    post:
+      description: Name must be unique within the project. Notifies other space members.
+      operationId: ProjectEnvironmentsController_create
+      parameters:
+        - name: projectId
+          required: true
+          in: path
+          description: Project CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnvironmentDto'
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only
+        '409':
+          description: Environment name already exists
+      security:
+        - access_token: []
+      summary: Create an environment (space WRITER or owner)
+      tags:
+        - environments
+  /api/v1/environments/{id}:
+    get:
+      operationId: EnvironmentsController_findOne
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Blocked by visibility rules
+        '404':
+          description: Not found
+      security:
+        - access_token: []
+      summary: Get an environment by ID
+      tags:
+        - environments
+    patch:
+      description: Notifies other space members (ENVIRONMENT_UPDATED).
+      operationId: EnvironmentsController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEnvironmentDto'
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only or visibility
+        '404':
+          description: Not found
+        '409':
+          description: Duplicate environment name
+      security:
+        - access_token: []
+      summary: Update an environment (space WRITER or owner)
+      tags:
+        - environments
+    delete:
+      description: Notifies other project members (ENVIRONMENT_DELETED).
+      operationId: EnvironmentsController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only or visibility
+        '404':
+          description: Not found
+      security:
+        - access_token: []
+      summary: Delete an environment (WRITER only)
+      tags:
+        - environments
+  /api/v1/environments/{id}/import:
+    post:
+      description: >-
+        Parses KEY=VALUE lines, encrypts with the space DEK, upserts secrets;
+        notifies other space members (SECRETS_IMPORTED).
+      operationId: EnvironmentsController_importSecrets
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportSecretsDto'
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSecretsResultDto'
+        '400':
+          description: Invalid body or signature
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only or visibility
+        '404':
+          description: Environment not found
+      security:
+        - access_token: []
+      summary: Bulk import secrets from .env text (WRITER only)
+      tags:
+        - environments
+  /api/v1/environments/{envId}/secrets:
+    get:
+      description: Returns only id and key per secret; ciphertext is never exposed.
+      operationId: EnvironmentSecretsController_findAll
+      parameters:
+        - name: envId
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecretKeyOnlyResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Visibility rules block access
+        '404':
+          description: Environment not found
+      security:
+        - access_token: []
+      summary: List secret keys (no values)
+      tags:
+        - secrets
+    post:
+      description: Value is encrypted before persistence; members are notified.
+      operationId: EnvironmentSecretsController_create
+      parameters:
+        - name: envId
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSecretDto'
+      responses:
+        '201':
+          description: Created id and key only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretKeyOnlyResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only or visibility
+        '404':
+          description: Environment not found
+        '409':
+          description: Duplicate key in environment
+      security:
+        - access_token: []
+      summary: Create a secret (WRITER + visibility)
+      tags:
+        - secrets
+  /api/v1/environments/{envId}/download:
+    get:
+      description: >-
+        Plaintext KEY=VALUE lines, one per secret, sorted by key. Requires
+        visibility access.
+      operationId: EnvironmentSecretsController_download
+      parameters:
+        - name: envId
+          required: true
+          in: path
+          description: Environment CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Raw .env text attachment
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  DATABASE_URL=postgres://...
+                  API_KEY=secret
+        '401':
+          description: Unauthorized
+        '403':
+          description: Visibility rules block access
+        '404':
+          description: Environment not found
+      security:
+        - access_token: []
+      summary: Download decrypted .env file
+      tags:
+        - secrets
+  /api/v1/secrets/{id}/reveal:
+    post:
+      description: >-
+        One-off plaintext response; value is not stored or logged by this
+        endpoint.
+      operationId: SecretsController_reveal
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Secret CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretRevealResponseDto'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Visibility rules block access
+        '404':
+          description: Secret not found
+      security:
+        - access_token: []
+      summary: Reveal decrypted secret value
+      tags:
+        - secrets
+  /api/v1/secrets/{id}:
+    patch:
+      description: Re-encrypts and replaces stored ciphertext.
+      operationId: SecretsController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Secret CUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSecretDto'
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretKeyOnlyResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only or visibility
+        '404':
+          description: Secret not found
+      security:
+        - access_token: []
+      summary: Update secret value (WRITER + visibility)
+      tags:
+        - secrets
+    delete:
+      description: Hard delete; notifies other project members.
+      operationId: SecretsController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Secret CUID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Writers only or visibility
+        '404':
+          description: Secret not found
+      security:
+        - access_token: []
+      summary: Delete a secret (WRITER + visibility)
+      tags:
+        - secrets
+  /api/v1/notifications:
+    get:
+      description: Unread first, newest first, max 50.
+      operationId: NotificationsController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationResponseDto'
+        '401':
+          description: Unauthorized
+      security:
+        - access_token: []
+      summary: List notifications
+      tags:
+        - notifications
+  /api/v1/notifications/read:
+    patch:
+      operationId: NotificationsController_markAllRead
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkReadResultDto'
+        '401':
+          description: Unauthorized
+      security:
+        - access_token: []
+      summary: Mark all notifications as read
+      tags:
+        - notifications
+  /api/v1/notifications/{id}/read:
+    patch:
+      operationId: NotificationsController_markOneRead
+      parameters:
+        - name: id
+          required: true
+          in: path
+          description: Notification CUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: updated count may be 0 if id not found or not yours
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkReadResultDto'
+        '401':
+          description: Unauthorized
+      security:
+        - access_token: []
+      summary: Mark one notification as read
+      tags:
+        - notifications
+  /api/v1/invites/accept:
+    post:
+      description: >-
+        Verifies signed invite JWT; authenticated user email must match payload;
+        creates SpaceMember.
+      operationId: InvitesController_accept
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInviteDto'
+      responses:
+        '201':
+          description: Membership created; returns space without encDek
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpaceDetailResponseDto'
+        '400':
+          description: Validation error
+        '401':
+          description: Invalid or expired token
+        '403':
+          description: Invite email does not match your account
+        '404':
+          description: Space no longer exists
+        '409':
+          description: Already a member
+      security:
+        - access_token: []
+      summary: Accept a space invite
+      tags:
+        - invites
+info:
+  title: EnvSpace API
+  description: >-
+    Secure shared .env manager for dev teams. All secret values are encrypted
+    server-side using libsodium. Auth uses httpOnly cookies (`access_token`,
+    `refresh_token`). Call POST /api/v1/auth/login or POST
+    /api/v1/auth/register; use POST /api/v1/auth/refresh to rotate. For Swagger
+    “Try it out”, enable credentials and sign in first.
+  version: '1.0'
+  contact: {}
+tags:
+  - name: auth
+    description: Registration, login, OAuth, session
+  - name: spaces
+    description: Team spaces management
+  - name: projects
+    description: Projects inside a space
+  - name: environments
+    description: Environments inside a project
+  - name: secrets
+    description: Secret key-value pairs inside an environment
+  - name: notifications
+    description: In-app notifications
+  - name: invites
+    description: Space invite token flow
+servers: []
+components:
+  securitySchemes:
+    cookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: JWT access token (httpOnly cookie set by login/register/refresh)
+  schemas:
+    RegisterDto:
+      type: object
+      properties:
+        email:
+          type: string
+          example: ahmed@linkiasoft.com
+        name:
+          type: string
+          example: Ahmed Hassan
+        password:
+          type: string
+          example: supersecret123
+          minLength: 8
+      required:
+        - email
+        - name
+        - password
+    LoginDto:
+      type: object
+      properties:
+        email:
+          type: string
+          example: ahmed@linkiasoft.com
+        password:
+          type: string
+          example: supersecret123
+      required:
+        - email
+        - password
+    SessionUserResponseDto:
+      type: object
+      description: Authenticated user returned by GET /auth/me
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+          description: OAuth provider identifier when the account uses SSO
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - name
+        - avatarUrl
+        - createdAt
+    SpaceResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Space CUID
+          example: clx1234abcd
+        name:
+          type: string
+          description: Display name
+          example: Linkiasoft
+        description:
+          type: object
+          description: Short description
+          example: Main engineering workspace
+        ownerId:
+          type: string
+          description: Owner user CUID
+          example: clx9999owner
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          example: '2024-01-02T00:00:00.000Z'
+        memberCount:
+          type: number
+          description: Number of space members
+          example: 3
+        projectCount:
+          type: number
+          description: Number of projects in the space
+          example: 5
+        viewerMembership:
+          type: string
+          enum:
+            - OWNER
+            - MEMBER
+          description: >-
+            OWNER if the current user owns the space; MEMBER if they access it
+            only via space membership (not the owner)
+      required:
+        - id
+        - name
+        - ownerId
+        - createdAt
+        - updatedAt
+        - memberCount
+        - projectCount
+        - viewerMembership
+    CreateSpaceDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The display name of the space (team or organization name)
+          example: Linkiasoft
+          minLength: 1
+          maxLength: 50
+        description:
+          type: string
+          description: A short description of what this space is for
+          example: Main workspace for the Linkiasoft engineering team
+          maxLength: 200
+      required:
+        - name
+    SpaceVisibilityRuleResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxrule123
+        spaceId:
+          type: string
+          example: clxspace123
+        envType:
+          type: string
+          enum:
+            - PRODUCTION
+            - STAGING
+            - DEVELOPMENT
+            - QC
+            - OTHER
+          example: PRODUCTION
+        access:
+          type: string
+          enum:
+            - OWNER_ONLY
+            - WRITERS
+            - ALL
+          example: WRITERS
+      required:
+        - id
+        - spaceId
+        - envType
+        - access
+    SpaceDetailResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clx1234abcd
+        name:
+          type: string
+          example: Linkiasoft
+        description:
+          type: object
+          example: Main engineering workspace
+        ownerId:
+          type: string
+          example: clx9999owner
+        createdAt:
+          format: date-time
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        visibilityRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpaceVisibilityRuleResponseDto'
+        members:
+          type: array
+          description: Space memberships with user profile
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              spaceId:
+                type: string
+              userId:
+                type: string
+              role:
+                type: string
+                enum:
+                  - VIEWER
+                  - WRITER
+              invitedById:
+                type: string
+                nullable: true
+              createdAt:
+                type: string
+                format: date-time
+              user:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  name:
+                    type: string
+                    nullable: true
+                  avatarUrl:
+                    type: string
+                    nullable: true
+      required:
+        - id
+        - name
+        - ownerId
+        - createdAt
+        - updatedAt
+        - visibilityRules
+        - members
+    UpdateSpaceDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated display name
+          example: Linkiasoft Engineering
+          minLength: 1
+          maxLength: 50
+        description:
+          type: string
+          description: Updated description
+          example: All backend and infra projects
+          maxLength: 200
+    VisibilityRuleItemDto:
+      type: object
+      properties:
+        envType:
+          type: string
+          description: Which environment type this rule applies to
+          enum:
+            - PRODUCTION
+            - STAGING
+            - DEVELOPMENT
+            - QC
+            - OTHER
+          example: PRODUCTION
+        access:
+          type: string
+          description: Who can view secrets for this environment type
+          enum:
+            - OWNER_ONLY
+            - WRITERS
+            - ALL
+          example: WRITERS
+      required:
+        - envType
+        - access
+    UpdateVisibilityDto:
+      type: object
+      properties:
+        rules:
+          description: One rule per environment type (upserted by spaceId + envType)
+          type: array
+          items:
+            $ref: '#/components/schemas/VisibilityRuleItemDto'
+      required:
+        - rules
+    InviteMemberDto:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Email address of the existing user to invite
+          example: ahmed@linkiasoft.com
+        role:
+          type: string
+          description: Role after the user accepts the invite
+          enum:
+            - VIEWER
+            - WRITER
+          default: WRITER
+      required:
+        - email
+    InviteEmailSentResponseDto:
+      type: object
+      properties:
+        sent:
+          type: boolean
+          example: true
+        email:
+          type: string
+          example: ahmed@linkiasoft.com
+      required:
+        - sent
+        - email
+    UpdateSpaceMemberRoleDto:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - VIEWER
+            - WRITER
+          description: New space role for the member (not applicable to the space owner row)
+      required:
+        - role
+    ProjectResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Project CUID
+          example: clxproj1234
+        spaceId:
+          type: string
+          description: Parent space CUID
+          example: clxspace123
+        name:
+          type: string
+          description: Project name
+          example: API Service
+        description:
+          type: object
+          description: Optional description
+          example: Backend monolith
+        createdById:
+          type: string
+          description: User who created the project
+          example: clxuser1
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          example: '2024-01-02T00:00:00.000Z'
+        memberCount:
+          type: number
+          description: Number of project members (when included)
+          example: 4
+        environmentCount:
+          type: number
+          description: Number of environments (when included)
+          example: 3
+      required:
+        - id
+        - spaceId
+        - name
+        - createdById
+        - createdAt
+        - updatedAt
+    CreateProjectDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Project display name
+          example: API Service
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          description: Optional longer description
+          example: NestJS backend for EnvSpace
+          maxLength: 500
+      required:
+        - name
+    UpdateProjectDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated project name
+          example: API Service v2
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          description: Updated description
+          example: Migrated to modular monolith
+          maxLength: 500
+    EnvironmentResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxenv1234
+        projectId:
+          type: string
+          example: clxproj1234
+        name:
+          type: string
+          example: .env.production
+        type:
+          type: string
+          description: Environment type — affects visibility rules
+          enum:
+            - PRODUCTION
+            - STAGING
+            - DEVELOPMENT
+            - QC
+            - OTHER
+          example: PRODUCTION
+        description:
+          type: object
+          example: Live production keys
+        githubRepo:
+          type: object
+          example: https://github.com/linkiasoft/edva-project
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          format: date-time
+          type: string
+          example: '2024-01-02T00:00:00.000Z'
+        secretCount:
+          type: number
+          description: Number of secrets (when included)
+          example: 12
+      required:
+        - id
+        - projectId
+        - name
+        - type
+        - createdAt
+        - updatedAt
+    CreateEnvironmentDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable name for the environment
+          example: .env.production
+          minLength: 1
+          maxLength: 120
+        type:
+          type: string
+          description: Environment type — controls badge color and default visibility rules
+          enum:
+            - PRODUCTION
+            - STAGING
+            - DEVELOPMENT
+            - QC
+            - OTHER
+          example: PRODUCTION
+        description:
+          type: string
+          description: Optional notes shown in the UI
+          example: Live keys — rotate monthly
+          maxLength: 500
+        githubRepo:
+          type: string
+          description: >-
+            GitHub repository URL for reference only (not connected
+            automatically)
+          example: https://github.com/linkiasoft/edva-project
+      required:
+        - name
+        - type
+    UpdateEnvironmentDto:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable name for the environment
+          example: .env.staging
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          description: Optional notes shown in the UI
+          maxLength: 500
+        githubRepo:
+          type: string
+          description: GitHub repository URL for reference only
+    ImportSecretsDto:
+      type: object
+      properties:
+        rawEnv:
+          type: string
+          description: >-
+            Raw .env file content pasted by the user. Comments and blank lines
+            are ignored; only the first `=` per line splits key from value.
+          example: |
+            # Database
+            DATABASE_URL=postgres://user:pass@host/db
+            REDIS_URL=redis://localhost:6379
+      required:
+        - rawEnv
+    ImportSecretsResultDto:
+      type: object
+      properties:
+        imported:
+          type: number
+          description: Number of key/value pairs imported or upserted
+          example: 14
+      required:
+        - imported
+    SecretKeyOnlyResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxsec1234
+        key:
+          type: string
+          example: DATABASE_URL
+      required:
+        - id
+        - key
+    CreateSecretDto:
+      type: object
+      properties:
+        key:
+          type: string
+          description: The environment variable key
+          example: DATABASE_URL
+          minLength: 1
+          maxLength: 256
+        value:
+          type: string
+          description: The plaintext value — encrypted with the space DEK before storage
+          example: postgres://user:pass@host:5432/db
+          maxLength: 50000
+      required:
+        - key
+        - value
+    SecretRevealResponseDto:
+      type: object
+      properties:
+        value:
+          type: string
+          description: >-
+            Plaintext value — only returned by the reveal endpoint, never stored
+            or listed elsewhere.
+          example: postgres://user:pass@host:5432/db
+      required:
+        - value
+    UpdateSecretDto:
+      type: object
+      properties:
+        value:
+          type: string
+          description: New plaintext value (re-encrypted and stored)
+          example: postgres://user:newpass@host:5432/db
+          maxLength: 50000
+      required:
+        - value
+    NotificationResponseDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: clxnotif123
+        type:
+          type: string
+          enum:
+            - SPACE_INVITE
+            - PROJECT_CREATED
+            - PROJECT_UPDATED
+            - PROJECT_DELETED
+            - ENVIRONMENT_CREATED
+            - ENVIRONMENT_UPDATED
+            - ENVIRONMENT_DELETED
+            - SECRETS_IMPORTED
+            - SECRET_ADDED
+            - SECRET_UPDATED
+            - SECRET_DELETED
+          example: SECRET_ADDED
+        secretKey:
+          type: string
+          nullable: true
+          description: Context string (secret key, project/env name, import count, etc.)
+          example: DATABASE_URL
+        actorName:
+          type: string
+          example: Jane Doe
+        projectId:
+          type: string
+          nullable: true
+          example: clxproj1234
+        spaceId:
+          type: string
+          example: clxspace123
+        environmentId:
+          type: string
+          nullable: true
+          example: clxenv1234
+        metadata:
+          type: object
+          description: >-
+            JSON with at least `message` (human-readable). `SPACE_INVITE` and
+            project-related types include `url` for navigation. Invite also
+            includes `token`, `role`, `spaceName`.
+          example:
+            message: Alex invites you to join the space “Acme”.
+            url: http://localhost:3000/invite/eyJhbGciOiJIUzI1NiJ9...
+            token: eyJhbGciOiJIUzI1NiJ9...
+            role: WRITER
+            spaceName: Acme
+        read:
+          type: boolean
+          example: false
+        createdAt:
+          format: date-time
+          type: string
+          example: '2024-01-01T00:00:00.000Z'
+      required:
+        - id
+        - type
+        - actorName
+        - spaceId
+        - read
+        - createdAt
+    MarkReadResultDto:
+      type: object
+      properties:
+        updated:
+          type: number
+          description: Rows updated
+          example: 3
+      required:
+        - updated
+    AcceptInviteDto:
+      type: object
+      properties:
+        token:
+          type: string
+          description: >-
+            Signed JWT from the invite email (7-day expiry). Payload email must
+            match your logged-in account.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          minLength: 10
+      required:
+        - token
