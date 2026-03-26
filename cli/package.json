@@ -1,0 +1,30 @@
+{
+  "name": "@spacenv/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Spacenv CLI",
+  "license": "MIT",
+  "bin": {
+    "spacenv": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --platform node --target node20 --out-dir dist --sourcemap --clean && node scripts/add-shebang.mjs dist/index.js",
+    "dev": "node --enable-source-maps dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.8.0"
+  }
+}
