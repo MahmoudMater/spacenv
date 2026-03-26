@@ -6,6 +6,7 @@ import type { Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 import * as YAML from 'js-yaml';
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
 import helmet from 'helmet';
 import compression from 'compression';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -64,11 +65,11 @@ async function bootstrap() {
     .setTitle('EnvSpace API')
     .setDescription(
       'Secure shared .env manager for dev teams. ' +
-        'All secret values are encrypted server-side using libsodium. ' +
-        'Auth uses httpOnly cookies (`access_token`, `refresh_token`). ' +
-        'Call POST /api/v1/auth/login or POST /api/v1/auth/register; ' +
-        'use POST /api/v1/auth/refresh to rotate. ' +
-        'For Swagger “Try it out”, enable credentials and sign in first.',
+      'All secret values are encrypted server-side using libsodium. ' +
+      'Auth uses httpOnly cookies (`access_token`, `refresh_token`). ' +
+      'Call POST /api/v1/auth/login or POST /api/v1/auth/register; ' +
+      'use POST /api/v1/auth/refresh to rotate. ' +
+      'For Swagger “Try it out”, enable credentials and sign in first.',
     )
     .setVersion('1.0')
     .addCookieAuth('access_token', {
@@ -102,11 +103,36 @@ async function bootstrap() {
     res.send(YAML.dump(document, { skipInvalid: true, noRefs: true }));
   });
 
+  // Ensure modules are initialized before checking DB connectivity.
+  await app.init();
+
+  const dbLogger = new Logger('Database');
+  try {
+    const prisma = app.get(PrismaService);
+    await prisma.$queryRaw`SELECT 1`;
+    dbLogger.log('Database connection: OK');
+  } catch (err) {
+  }
+
   const port = process.env.PORT || 4000;
   await app.listen(port);
-  console.log(`EnvSpace API running on http://localhost:${port}/api/v1`);
-  console.log(`Swagger UI: http://localhost:${port}/docs`);
-  console.log(`OpenAPI YAML: http://localhost:${port}/yaml`);
-  console.log(`OpenAPI JSON: http://localhost:${port}/docs-json`);
+  // database connection: OK
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const prisma = app.get(PrismaService);
+      await prisma.$queryRaw`SELECT 1`;
+      console.log('Database connection: OK');
+    } catch (err) {
+      const stack = err instanceof Error ? err.stack : undefined;
+      dbLogger.error('Database connection: FAILED', stack);
+      throw err;
+    }
+    console.log(`EnvSpace API running on http://localhost:${port}/api/v1`);
+    console.log(`Swagger UI: http://localhost:${port}/docs`);
+    console.log(`OpenAPI YAML: http://localhost:${port}/yaml`);
+    console.log(`OpenAPI JSON: http://localhost:${port}/docs-json`);
+  } else {
+    console.log(`EnvSpace API running on ${process.env.API_URL}/api/v1`);
+  }
 }
 bootstrap();
